@@ -1,5 +1,6 @@
 package com.gregtechceu.gtceu.integration.recipeviewer.emi.recipe;
 
+import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.capability.recipe.FluidRecipeCapability;
 import com.gregtechceu.gtceu.api.capability.recipe.ItemRecipeCapability;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
@@ -43,6 +44,18 @@ public class GTEmiRecipe extends ModularUIEmiRecipe {
             var mapped = ItemRecipeCapability
                     .mapIngredientToEntryList(ItemRecipeCapability.CAP.of(itemContent.content()));
 
+            // === DEEPSPACE DEBUG PATCH START (inputs) ===
+            if (mapped == null || mapped.getStacks().isEmpty()) {
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/EMI DEBUG]\nEMPTY EMI ITEM INPUT:\nrecipe = {}\nrecipeType = {}\nitemContent = {}\nitemInputs.size = {}\nfluidInputs.size = {}",
+                        recipe.getId(),
+                        recipe.recipeType != null ? recipe.recipeType.registryName : "unknown",
+                        itemContent.content(),
+                        items.size(),
+                        fluids.size());
+            }
+            // === DEEPSPACE DEBUG PATCH END ===
+
             ingredients.add(EmiStackConverter.ITEM.convertTo(mapped, chance));
         }
 
@@ -51,6 +64,18 @@ public class GTEmiRecipe extends ModularUIEmiRecipe {
 
             var mapped = FluidRecipeCapability
                     .mapIngredientToEntryList(FluidRecipeCapability.CAP.of(fluidContent.content()));
+
+            // === DEEPSPACE DEBUG PATCH START (inputs) ===
+            if (mapped == null || mapped.getStacks().isEmpty()) {
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/EMI DEBUG]\nEMPTY EMI FLUID INPUT:\nrecipe = {}\nrecipeType = {}\nfluidContent = {}\nitemInputs.size = {}\nfluidInputs.size = {}",
+                        recipe.getId(),
+                        recipe.recipeType != null ? recipe.recipeType.registryName : "unknown",
+                        fluidContent.content(),
+                        items.size(),
+                        fluids.size());
+            }
+            // === DEEPSPACE DEBUG PATCH END ===
 
             ingredients.add(EmiStackConverter.FLUID.convertTo(mapped, chance));
         }
@@ -71,6 +96,19 @@ public class GTEmiRecipe extends ModularUIEmiRecipe {
             var mapped = ItemRecipeCapability
                     .mapIngredientToEntryList(ItemRecipeCapability.CAP.of(itemContent.content()));
 
+            // === DEEPSPACE DEBUG PATCH START ===
+            if (mapped == null || mapped.getStacks().isEmpty()) {
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/EMI DEBUG]\nEMPTY EMI ITEM OUTPUT:\nrecipe = {}\nrecipeType = {}\nitemContent = {}\nitemOutputs.size = {}\nfluidOutputs.size = {}",
+                        recipe.getId(),
+                        recipe.recipeType != null ? recipe.recipeType.registryName : "unknown",
+                        itemContent.content(),
+                        items.size(),
+                        fluids.size());
+                continue; // skip this broken output instead of crashing the whole EMI plugin load
+            }
+            // === DEEPSPACE DEBUG PATCH END ===
+
             outputs.add(EmiStack.of(mapped.getStacks().get(0)).setChance(chance));
         }
 
@@ -79,6 +117,20 @@ public class GTEmiRecipe extends ModularUIEmiRecipe {
 
             var mapped = FluidRecipeCapability
                     .mapIngredientToEntryList(FluidRecipeCapability.CAP.of(fluidContent.content()));
+
+            // === DEEPSPACE DEBUG PATCH START ===
+            if (mapped == null || mapped.getStacks().isEmpty()) {
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/EMI DEBUG]\nEMPTY EMI FLUID OUTPUT:\nrecipe = {}\nrecipeType = {}\nfluidContent = {}\nitemOutputs.size = {}\nfluidOutputs.size = {}",
+                        recipe.getId(),
+                        recipe.recipeType != null ? recipe.recipeType.registryName : "unknown",
+                        fluidContent.content(),
+                        items.size(),
+                        fluids.size());
+                continue; // skip this broken output instead of crashing the whole EMI plugin load
+            }
+            // === DEEPSPACE DEBUG PATCH END ===
+
             var fluid = mapped.getStacks().get(0);
             outputs.add(EmiStack.of(fluid.getFluid(), fluid.getAmount()).setChance(chance));
         }

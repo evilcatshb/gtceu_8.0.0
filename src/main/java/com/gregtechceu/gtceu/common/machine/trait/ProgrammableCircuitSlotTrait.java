@@ -43,9 +43,20 @@ public class ProgrammableCircuitSlotTrait extends NotifiableRecipeHandlerTrait<I
 
     public ProgrammableCircuitSlotTrait() {
         setEnabled(ConfigHolder.INSTANCE.machines.ghostCircuit);
-        storage = new CustomItemStackHandler(1);
+        storage = createStorage();
         storage.setFilter(IntCircuitBehaviour::isIntegratedCircuit);
         storage.setOnContentsChanged(this::notifyListeners);
+    }
+
+    /**
+     * Factory hook for the circuit slot's backing item handler. Addon mods can override this (via a
+     * subclass swapped in through a mixin {@code @Redirect} on this trait's constructor call) to supply
+     * a handler with custom {@code isItemValid}/{@code insertItem} behavior - e.g. accepting a different
+     * kind of item and resolving it into the stored stack - without having to reimplement the rest of
+     * this trait.
+     */
+    protected CustomItemStackHandler createStorage() {
+        return new CustomItemStackHandler(1);
     }
 
     // Returns the current circuit value

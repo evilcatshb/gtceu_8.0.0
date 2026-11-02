@@ -1,4 +1,5 @@
 repositories {
+    maven { name = "Local MUI"; url = uri("$rootDir/libs") }
     mavenLocal()
     mavenCentral()
     // force gradle to download FastUtil and LWJGL from the central maven so we can get source artifacts
@@ -35,12 +36,6 @@ repositories {
         name = "ModMaven"
         url = "https://modmaven.dev"
     }
-
-    maven { // LDLib, Shimmer
-        name = "FirstDarkDev Maven"
-        url = "https://maven.firstdark.dev/snapshots"
-    }
-
 
     exclusiveContent { // Create, Ponder, Flywheel
         forRepository { maven { url = "https://maven.createmod.net" } }

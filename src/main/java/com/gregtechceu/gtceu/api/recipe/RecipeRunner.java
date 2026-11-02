@@ -90,7 +90,14 @@ public class RecipeRunner {
             var contentList = this.recipeContents.computeIfAbsent(cap, c -> new ArrayList<>());
             var searchContentList = this.searchRecipeContents.computeIfAbsent(cap, c -> new ArrayList<>());
             for (Content cont : entry.getValue()) {
-                searchContentList.add(cont.content());
+                // When simulating (recipe matching), all contents must be present in searchRecipeContents.
+                // During real execution, only add guaranteed outputs to searchRecipeContents so that
+                // chanced outputs do not block the pre-insertion slot check. Chanced outputs that
+                // actually roll will be tracked in recipeContents and silently discarded if they
+                // cannot fit (original behaviour before the retry-on-full-output change).
+                if (simulated || cont.chance() >= cont.maxChance()) {
+                    searchContentList.add(cont.content());
+                }
 
                 // When simulating the recipe handling (used for recipe matching),
                 // searchRecipeContents == recipeContents, so all contents, chanced and unchanced, must match

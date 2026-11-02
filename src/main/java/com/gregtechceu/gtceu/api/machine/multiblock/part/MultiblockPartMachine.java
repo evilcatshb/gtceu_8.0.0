@@ -10,6 +10,8 @@ import com.gregtechceu.gtceu.api.machine.property.GTMachineModelProperties;
 import com.gregtechceu.gtceu.api.machine.trait.recipe.IRecipeHandlerTrait;
 import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerList;
 import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeLogic;
+import com.gregtechceu.gtceu.api.multiblock.MultiblockWorldSavedData;
+import com.gregtechceu.gtceu.api.multiblock.pattern.PatternState;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.sync_system.annotations.ClientFieldChangeListener;
 import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
@@ -19,6 +21,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -127,6 +130,29 @@ public class MultiblockPartMachine extends MetaMachine {
             }
         }
         return handlerList;
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        if (getLevel() instanceof ServerLevel serverLevel) {
+            // If this part's chunk loads after an already-formed controller, the controller may
+            // still have a valid cached pattern while its live part relationship is absent. The
+            // world mapping identifies valid patterns touching this chunk without force-loading
+            // anything; the controller performs the idempotent runtime reconciliation.
+            serverLevel.getServer().tell(new net.minecraft.server.TickTask(2, () -> {
+                if (isRemoved() || getLevel() != serverLevel) return;
+                for (PatternState patternState : MultiblockWorldSavedData.getOrCreate(serverLevel)
+                        .getPatternsInChunk(new ChunkPos(getBlockPos()))) {
+                    if (!patternState.getCache().containsKey(getBlockPos().asLong())) continue;
+                    if (MetaMachine.getMachine(serverLevel,
+                            patternState.getControllerPos()) instanceof MultiblockControllerMachine controller &&
+                            !controller.isRemoved()) {
+                        controller.checkAndFormStructure();
+                    }
+                }
+            }));
+        }
     }
 
     @Override

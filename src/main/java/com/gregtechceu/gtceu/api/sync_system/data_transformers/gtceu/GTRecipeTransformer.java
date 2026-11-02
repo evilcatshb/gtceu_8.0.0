@@ -47,6 +47,20 @@ public class GTRecipeTransformer implements ValueTransformer<GTRecipe> {
         RecipeManager recipeManager = getRecipeManager();
         GTRecipe result = null;
         if (tag instanceof CompoundTag compoundTag) {
+            String idStr = compoundTag.getString("id");
+            if (!idStr.isEmpty() && recipeManager != null) {
+                ResourceLocation id = ResourceLocation.tryParse(idStr);
+                if (id != null) {
+                    try {
+                        var registered = recipeManager.byKey(id).orElse(null);
+                        if (registered instanceof GTRecipe gtRecipe) {
+                            result = gtRecipe.copy();
+                            result.ocLevel = compoundTag.getInt("ocLevel");
+                            return result;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
             result = GTRecipeSerializer.CODEC.parse(context.nbtOps(), compoundTag.get("recipe")).result().orElse(null);
             if (result != null) {
                 result.id = ResourceLocation.parse(compoundTag.getString("id"));

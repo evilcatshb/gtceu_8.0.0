@@ -107,7 +107,7 @@ public class SizedIngredient extends Ingredient {
         JsonObject json = new JsonObject();
         json.addProperty("type", TYPE.toString());
         json.addProperty("count", amount);
-        json.add("ingredient", inner.toJson());
+        json.add("ingredient", inner == null ? new com.google.gson.JsonArray() : inner.toJson());
         return json;
     }
 
@@ -173,9 +173,17 @@ public class SizedIngredient extends Ingredient {
 
         @Override
         public @NotNull SizedIngredient parse(JsonObject json) {
-            int amount = json.get("count").getAsInt();
-            Ingredient inner = Ingredient.fromJson(json.get("ingredient"));
-            return new SizedIngredient(inner, amount);
+            int amount = json.has("count") ? json.get("count").getAsInt() : 1;
+            JsonElement innerJson = json.get("ingredient");
+            if (innerJson == null || (innerJson.isJsonArray() && innerJson.getAsJsonArray().isEmpty())) {
+                return new SizedIngredient(Ingredient.EMPTY, amount);
+            }
+            try {
+                Ingredient inner = Ingredient.fromJson(innerJson, true);
+                return new SizedIngredient(inner, amount);
+            } catch (Exception e) {
+                return new SizedIngredient(Ingredient.EMPTY, amount);
+            }
         }
 
         @Override

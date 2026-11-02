@@ -254,6 +254,23 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
     public void serverTick() {
         if (!isSuspend()) {
             if (!isIdle() && lastRecipe != null) {
+                if (lastRecipe.id != null && (lastRecipe.outputs.isEmpty() && lastRecipe.tickOutputs.isEmpty())) {
+                    try {
+                        var registered = getRecipeManager().byKey(lastRecipe.id).orElse(null);
+                        if (registered instanceof GTRecipe gtRecipe &&
+                                (!gtRecipe.outputs.isEmpty() || !gtRecipe.tickOutputs.isEmpty())) {
+                            int savedProgress = progress;
+                            int savedDuration = duration;
+                            int savedOcLevel = lastRecipe.ocLevel;
+                            lastRecipe = gtRecipe.copy();
+                            lastRecipe.ocLevel = savedOcLevel;
+                            lastUnrolledRecipe = lastRecipe.copy();
+                            syncDataHolder.markClientSyncFieldDirty("lastUnrolledRecipe");
+                            progress = savedProgress;
+                            duration = savedDuration;
+                        }
+                    } catch (Exception ignored) {}
+                }
                 if (progress < duration) {
                     if (runDelay > 0) {
                         runDelay--;
@@ -295,6 +312,15 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
     }
 
     protected ActionResult checkRecipe(GTRecipe recipe) {
+        if (recipe != null && recipe.id != null && (recipe.outputs.isEmpty() && recipe.tickOutputs.isEmpty())) {
+            try {
+                var registered = getRecipeManager().byKey(recipe.id).orElse(null);
+                if (registered instanceof GTRecipe gtRecipe &&
+                        (!gtRecipe.outputs.isEmpty() || !gtRecipe.tickOutputs.isEmpty())) {
+                    recipe = gtRecipe;
+                }
+            } catch (Exception ignored) {}
+        }
         var conditionResult = RecipeHelper.checkConditions(recipe, this);
         if (!conditionResult.isSuccess()) return conditionResult;
 
@@ -386,6 +412,13 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
 
         // try to execute last recipe if possible
         GTRecipe last = lastUnrolledRecipe;
+        if (last != null && last.outputs.isEmpty() && last.tickOutputs.isEmpty()) {
+            last = null;
+            lastRecipe = null;
+            lastUnrolledRecipe = null;
+            lastOriginRecipe = null;
+            recipeDirty = true;
+        }
         if (!recipeDirty && last != null) {
             var lastCheck = checkRecipe(last);
             if (lastCheck.isSuccess()) {
@@ -450,6 +483,17 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
     }
 
     public void setupRecipe(GTRecipe recipe) {
+        if (recipe.id != null && (recipe.outputs.isEmpty() && recipe.tickOutputs.isEmpty())) {
+            try {
+                var registered = getRecipeManager().byKey(recipe.id).orElse(null);
+                if (registered instanceof GTRecipe gtRecipe &&
+                        (!gtRecipe.outputs.isEmpty() || !gtRecipe.tickOutputs.isEmpty())) {
+                    int oc = recipe.ocLevel;
+                    recipe = gtRecipe.copy();
+                    recipe.ocLevel = oc;
+                }
+            } catch (Exception ignored) {}
+        }
         if (!getRLMachine().beforeWorking(recipe)) {
             setStatus(Status.IDLE);
             consecutiveRecipes = 0;
@@ -467,6 +511,17 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
         GTRecipe runningRecipe = RecipeHelper.doPrerolls(recipe, chanceCaches);
         startingRecipe = runningRecipe;
         consumedInputs.clear();
+        // Pre-check: simulate output insertion before consuming inputs.
+        // If output slots are full the recipe is paused (WAITING) and retried every tick
+        // automatically — no player interaction needed to resume.
+        if (!runningRecipe.outputs.isEmpty()) {
+            var outputCheck = RecipeHelper.handleRecipe(getRLMachine(), runningRecipe, IO.OUT,
+                    runningRecipe.outputs, chanceCaches, false, true);
+            if (!outputCheck.isSuccess() && outputCheck.capability() != null) {
+                setWaiting(Component.translatable("gtceu.recipe_logic.output_full"));
+                return;
+            }
+        }
         var handledIO = handleRecipeIO(runningRecipe, IO.IN);
         if (handledIO.isSuccess()) {
             if (lastRecipe != null && !runningRecipe.equals(lastRecipe)) {
@@ -588,10 +643,10 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
     public void onRecipeFinish() {
         getRLMachine().afterWorking();
         if (lastRecipe != null) {
+            handleRecipeIO(lastRecipe, IO.OUT);
             runAttempt = 0;
             runDelay = 0;
             consecutiveRecipes++;
-            handleRecipeIO(lastRecipe, IO.OUT);
             // Don't ready the next recipe after finish if suspend is set
             // so that the modifiers won't be applied until re-starting.
             if (suspendAfterFinish) {
@@ -603,6 +658,19 @@ public class RecipeLogic extends MachineTrait implements IWorkable {
                 // Force a recipe recheck.
                 lastRecipe = null;
                 lastUnrolledRecipe = null;
+                syncDataHolder.resyncAllFields();
+                return;
+            }
+            if (lastRecipe != null && lastRecipe.outputs.isEmpty() && lastRecipe.tickOutputs.isEmpty()) {
+                lastRecipe = null;
+                lastUnrolledRecipe = null;
+                lastOriginRecipe = null;
+                markLastRecipeDirty();
+                setStatus(Status.IDLE);
+                consecutiveRecipes = 0;
+                progress = 0;
+                duration = 0;
+                isActive = false;
                 syncDataHolder.resyncAllFields();
                 return;
             }

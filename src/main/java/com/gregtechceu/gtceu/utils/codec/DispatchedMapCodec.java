@@ -46,6 +46,12 @@ public record DispatchedMapCodec<K, V>(
             final Pair<Map<K, V>, T> pair = Pair.of(new Object2ObjectArrayMap<>(entries), input);
             final T errors = ops.createMap(failed.build());
 
+            if (finalResult.error().isPresent() && !entries.isEmpty()) {
+                GTCEu.LOGGER.warn("Partial errors encountered during DispatchedMapCodec decoding: {}",
+                        finalResult.error().get().message());
+                return DataResult.success(pair, Lifecycle.stable());
+            }
+
             return finalResult.map(ignored -> pair).setPartial(pair)
                     .mapError(error -> error + " missed input: " + errors);
         });

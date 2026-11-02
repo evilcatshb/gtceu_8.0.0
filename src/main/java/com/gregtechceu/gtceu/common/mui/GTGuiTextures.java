@@ -87,6 +87,7 @@ public interface GTGuiTextures {
             .imageSize(16, 16)
             .adaptable(4)
             .name(IDs.BRONZE_BACKGROUND)
+            .canApplyTheme()
             .build();
 
     UITexture BACKGROUND_STEEL = UITexture.builder()
@@ -94,6 +95,7 @@ public interface GTGuiTextures {
             .imageSize(16, 16)
             .adaptable(4)
             .name(IDs.STEEL_BACKGROUND)
+            .canApplyTheme()
             .build();
 
     UITexture BLANK_TRANSPARENT = fullImage("textures/gui/base/blank_transparent.png");
@@ -104,6 +106,7 @@ public interface GTGuiTextures {
             .imageSize(176, 166)
             .adaptable(3)
             .name(IDs.PRIMITIVE_BACKGROUND)
+            .canApplyTheme()
             .build();
 
     // todo clipboard backgrounds, may deserve some redoing
@@ -142,6 +145,7 @@ public interface GTGuiTextures {
             .imageSize(18, 18)
             .adaptable(1)
             .name(IDs.BRONZE_SLOT)
+            .canApplyTheme()
             .build();
 
     UITexture SLOT_STEEL = new UITexture.Builder()
@@ -149,6 +153,7 @@ public interface GTGuiTextures {
             .imageSize(18, 18)
             .adaptable(1)
             .name(IDs.STEEL_SLOT)
+            .canApplyTheme()
             .build();
 
     UITexture SLOT_DARK = fullImage("textures/gui/base/slot_dark.png");
@@ -159,6 +164,7 @@ public interface GTGuiTextures {
             .imageSize(18, 18)
             .adaptable(1)
             .name(IDs.PRIMITIVE_SLOT)
+            .canApplyTheme()
             .build();
 
     UITexture FLUID_SLOT = new UITexture.Builder()

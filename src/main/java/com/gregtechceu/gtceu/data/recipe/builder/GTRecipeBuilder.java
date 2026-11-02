@@ -749,7 +749,7 @@ public class GTRecipeBuilder {
     }
 
     public GTRecipeBuilder chancedOutput(Ingredient stack, int chance) {
-        if (checkChanceAndPrintError(chance)) {
+        if (stack.isEmpty() || checkChanceAndPrintError(chance)) {
             return this;
         }
         int lastChance = this.chance;
@@ -760,7 +760,7 @@ public class GTRecipeBuilder {
     }
 
     public GTRecipeBuilder chancedOutput(FluidIngredient stack, int chance) {
-        if (checkChanceAndPrintError(chance)) {
+        if (stack.isEmpty() || checkChanceAndPrintError(chance)) {
             return this;
         }
         int lastChance = this.chance;
@@ -771,18 +771,22 @@ public class GTRecipeBuilder {
     }
 
     public GTRecipeBuilder chancedInput(ItemStack stack, int chance) {
+        if (stack.isEmpty()) return this;
         return chancedInput(SizedIngredient.create(stack), chance);
     }
 
     public GTRecipeBuilder chancedInput(FluidStack stack, int chance) {
+        if (stack.isEmpty()) return this;
         return chancedInput(FluidIngredient.of(stack), chance);
     }
 
     public GTRecipeBuilder chancedOutput(ItemStack stack, int chance) {
+        if (stack.isEmpty()) return this;
         return chancedOutput(SizedIngredient.create(stack), chance);
     }
 
     public GTRecipeBuilder chancedOutput(FluidStack stack, int chance) {
+        if (stack.isEmpty()) return this;
         return chancedOutput(FluidIngredient.of(stack), chance);
     }
 

@@ -175,7 +175,8 @@ public abstract class GTRegistry<K, V> implements Iterable<V> {
     }
 
     public V getOrDefault(K key, V defaultValue) {
-        return keyToValue.getOrDefault(key, defaultValue);
+        V val = get(key);
+        return val != null ? val : defaultValue;
     }
 
     public K getKey(V value) {
@@ -213,6 +214,25 @@ public abstract class GTRegistry<K, V> implements Iterable<V> {
 
         public RL(ResourceLocation registryName) {
             super(registryName);
+        }
+
+        @Nullable
+        @Override
+        public V get(ResourceLocation key) {
+            V val = super.get(key);
+            if (val == null && key != null && "minecraft".equals(key.getNamespace())) {
+                val = super.get(new ResourceLocation(this.registryName.getNamespace(), key.getPath()));
+            }
+            return val;
+        }
+
+        @Override
+        public boolean containsKey(ResourceLocation key) {
+            if (super.containsKey(key)) return true;
+            if (key != null && "minecraft".equals(key.getNamespace())) {
+                return super.containsKey(new ResourceLocation(this.registryName.getNamespace(), key.getPath()));
+            }
+            return false;
         }
 
         @Override

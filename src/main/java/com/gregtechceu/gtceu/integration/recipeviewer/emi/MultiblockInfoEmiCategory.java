@@ -2,6 +2,7 @@ package com.gregtechceu.gtceu.integration.recipeviewer.emi;
 
 import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.machine.MultiblockMachineDefinition;
+import com.gregtechceu.gtceu.api.mui.MultiblockSchemaInfo;
 import com.gregtechceu.gtceu.api.multiblock.pattern.BlockPattern;
 import com.gregtechceu.gtceu.api.multiblock.pattern.ExpandablePattern;
 import com.gregtechceu.gtceu.api.multiblock.pattern.IBlockPattern;
@@ -30,10 +31,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.gregtechceu.gtceu.api.machine.multiblock.MultiblockControllerMachine.DEFAULT_STRUCTURE;
 
@@ -88,7 +86,7 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
                 structureHelper = AbstractStructureHelper.expandable(userDimensions);
             }
             if (structureHelper != null) {
-                structureHelper.populate(resultStructure, pattern, null,
+                structureHelper.populate(new MultiblockSchemaInfo(), resultStructure, pattern, null,
                         definition.getRotationState().defaultDirection, switch (definition.getRotationState()) {
                             case Y_AXIS -> Direction.NORTH;
                             case ALL, NON_Y_AXIS, NONE -> Direction.UP;
@@ -97,6 +95,7 @@ public class MultiblockInfoEmiCategory extends EmiRecipeCategory {
                 Object2IntMap<Block> blockCount = new Object2IntOpenHashMap<>();
                 resultStructure.forEach(
                         (pos, state) -> blockCount.mergeInt(state.getBlockState().getBlock(), 1, Integer::sum));
+
                 blockCount.forEach((block, count) -> containedBlocks.add(EmiStack.of(block.asItem(), count)));
             }
         }

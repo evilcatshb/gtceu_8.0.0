@@ -71,7 +71,16 @@ public class CustomItemStackHandler extends ItemStackHandler
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        if (nbt.getInt("Size") != stacks.size()) nbt.putInt("Size", stacks.size());
+        // Preserve inventories from older machine topologies. DeepSpace previously
+        // allowed two item-input slots on some GTCEu singleblock recipe types. If
+        // persisted NBT contains more slots than the current handler, retain those
+        // slots instead of truncating them during world load.
+        int serializedSize = nbt.getInt("Size");
+        if (serializedSize > stacks.size()) {
+            stacks = NonNullList.withSize(serializedSize, ItemStack.EMPTY);
+        } else if (serializedSize != stacks.size()) {
+            nbt.putInt("Size", stacks.size());
+        }
         super.deserializeNBT(nbt);
     }
 }

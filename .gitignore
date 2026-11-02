@@ -25,3 +25,23 @@ src/generated/resources/.cache/
 *.cap
 *.DS_Store
 
+
+# DeepSpace local diagnostics, build logs, and recovery backups
+.fix-backups-*/
+.inspect-mui/
+.mui-decomp/
+.runtimecheck/
+.verify-runtime/
+*.log
+*.err
+*.exit
+*.pid
+pid.txt
+*.bak
+*.bak-*
+*.BAK*
+*.pre-*
+*.diag-*
+$null
+build_err.txt
+build_log.txt

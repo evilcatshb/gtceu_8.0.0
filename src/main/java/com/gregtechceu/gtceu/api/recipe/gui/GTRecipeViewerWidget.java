@@ -1,5 +1,6 @@
 package com.gregtechceu.gtceu.api.recipe.gui;
 
+import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.GTValues;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
 import com.gregtechceu.gtceu.api.capability.recipe.RecipeCapability;
@@ -71,6 +72,20 @@ public class GTRecipeViewerWidget extends ParentWidget<GTRecipeViewerWidget> {
         this.minTier = RecipeHelper.getRecipeEUtTier(recipe);
         this.tier = minTier;
 
+        // === DEEPSPACE DEBUG PATCH (ctor) START ===
+        if (recipeType.registryName != null && recipeType.registryName.getPath().contains("sifter")) {
+            GTCEu.LOGGER.error(
+                    "[DeepSpace/CTOR DEBUG]\nSIFTER RECIPE WIDGET CONSTRUCTED:\nrecipe = {}\nrecipeType = {}\ninputs.keySet = {}\noutputs.keySet = {}\ntickInputs.keySet = {}\ntickOutputs.keySet = {}\ninputs.item.size = {}\noutputs.item.size = {}",
+                    recipe.id, recipeType.registryName,
+                    recipe.inputs.keySet(), recipe.outputs.keySet(),
+                    recipe.tickInputs.keySet(), recipe.tickOutputs.keySet(),
+                    recipe.getInputContents(com.gregtechceu.gtceu.api.capability.recipe.ItemRecipeCapability.CAP)
+                            .size(),
+                    recipe.getOutputContents(com.gregtechceu.gtceu.api.capability.recipe.ItemRecipeCapability.CAP)
+                            .size());
+        }
+        // === DEEPSPACE DEBUG PATCH (ctor) END ===
+
         Flow mainColumn = Flow.col().widthRel(1f).coverChildrenHeight();
 
         child(mainColumn);
@@ -135,6 +150,14 @@ public class GTRecipeViewerWidget extends ParentWidget<GTRecipeViewerWidget> {
         var allOutputCaps = new HashSet<>(modifiedRecipe.outputs.keySet());
         allOutputCaps.addAll(modifiedRecipe.tickOutputs.keySet());
 
+        // === DEEPSPACE DEBUG PATCH (ctor) START ===
+        if (recipeType.registryName != null && recipeType.registryName.getPath().contains("sifter")) {
+            GTCEu.LOGGER.error(
+                    "[DeepSpace/CTOR DEBUG]\nloadContentIntoSlots CAP SETS:\nrecipe = {}\nallInputCaps = {}\nallOutputCaps = {}",
+                    baseRecipe.id, allInputCaps, allOutputCaps);
+        }
+        // === DEEPSPACE DEBUG PATCH (ctor) END ===
+
         for (var cap : allInputCaps) {
             loadCapContent(cap, IO.IN);
         }
@@ -151,14 +174,42 @@ public class GTRecipeViewerWidget extends ParentWidget<GTRecipeViewerWidget> {
                 modifiedRecipe.getTickOutputContents(cap);
 
         var widgetBuilder = uiLayout.capabilityInfo(cap).capabilityWidgetBuilder;
-        if (widgetBuilder == null) return;
+
+        // === DEEPSPACE DEBUG PATCH (widget) START ===
+        if (recipeType.registryName != null && recipeType.registryName.getPath().contains("sifter")) {
+            GTCEu.LOGGER.error(
+                    "[DeepSpace/CTOR DEBUG]\nloadCapContent CALLED:\nrecipe = {}\ncap = {}\nio = {}\ncontents.size = {}\ntickContents.size = {}\nwidgetBuilder = {}",
+                    baseRecipe.id, cap.id, io, contents.size(), tickContents.size(),
+                    widgetBuilder == null ? "NULL" : "present");
+        }
+        // === DEEPSPACE DEBUG PATCH (widget) END ===
+
+        if (widgetBuilder == null) {
+            // === DEEPSPACE DEBUG PATCH (widget) START ===
+            if (!contents.isEmpty() || !tickContents.isEmpty()) {
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/WIDGET DEBUG]\nNULL WIDGET BUILDER (nothing will render for this capability):\nrecipe = {}\nrecipeType = {}\ncap = {}\nio = {}\ncontents.size = {}\ntickContents.size = {}",
+                        baseRecipe.id, recipeType.registryName, cap.id, io, contents.size(), tickContents.size());
+            }
+            // === DEEPSPACE DEBUG PATCH (widget) END ===
+            return;
+        }
 
         int currentContentIndex = 0;
 
         for (var content : contents) {
             IWidget widget = WidgetTree.findFirstWithNameNullable(this,
                     capabilityWidgetName(cap, io, currentContentIndex));
-            if (widget == null) continue;
+            if (widget == null) {
+                // === DEEPSPACE DEBUG PATCH (widget) START ===
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/WIDGET DEBUG]\nNO SLOT WIDGET FOUND FOR CONTENT (slot count vs recipeType max mismatch?):\nrecipe = {}\nrecipeType = {}\ncap = {}\nio = {}\nslotIndex = {}\nwidgetName = {}\ncontent = {}\ncontents.size = {}\nrecipeType.maxInputs = {}\nrecipeType.maxOutputs = {}",
+                        baseRecipe.id, recipeType.registryName, cap.id, io, currentContentIndex,
+                        capabilityWidgetName(cap, io, currentContentIndex), content.content(), contents.size(),
+                        recipeType.maxInputs, recipeType.maxOutputs);
+                // === DEEPSPACE DEBUG PATCH (widget) END ===
+                continue;
+            }
             widgetBuilder.buildWidgetContent(widget, content, io, false, recipeType, modifiedRecipe, tier, tier);
             currentContentIndex++;
         }
@@ -166,7 +217,16 @@ public class GTRecipeViewerWidget extends ParentWidget<GTRecipeViewerWidget> {
         for (var tickContent : tickContents) {
             IWidget widget = WidgetTree.findFirstWithNameNullable(this,
                     capabilityWidgetName(cap, io, currentContentIndex));
-            if (widget == null) continue;
+            if (widget == null) {
+                // === DEEPSPACE DEBUG PATCH (widget) START ===
+                GTCEu.LOGGER.error(
+                        "[DeepSpace/WIDGET DEBUG]\nNO SLOT WIDGET FOUND FOR TICK CONTENT:\nrecipe = {}\nrecipeType = {}\ncap = {}\nio = {}\nslotIndex = {}\nwidgetName = {}\ntickContent = {}\ntickContents.size = {}",
+                        baseRecipe.id, recipeType.registryName, cap.id, io, currentContentIndex,
+                        capabilityWidgetName(cap, io, currentContentIndex), tickContent.content(),
+                        tickContents.size());
+                // === DEEPSPACE DEBUG PATCH (widget) END ===
+                continue;
+            }
             widgetBuilder.buildWidgetContent(widget, tickContent, io, true, recipeType, modifiedRecipe, tier, tier);
             currentContentIndex++;
         }

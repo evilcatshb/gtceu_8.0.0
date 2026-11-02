@@ -274,12 +274,18 @@ public class FluidIngredient implements Predicate<FluidStack> {
         int amount = GsonHelper.getAsInt(jsonObject, "amount", 0);
         CompoundTag nbt = jsonObject.has("nbt") ? CraftingHelper.getNBT(jsonObject.get("nbt")) : null;
 
+        if (!jsonObject.has("value") || jsonObject.get("value").isJsonNull()) {
+            if (allowEmpty) return FluidIngredient.EMPTY;
+            throw new JsonSyntaxException("expected 'value' to be an object, an array or a string.");
+        }
+
         if (GsonHelper.isObjectNode(jsonObject, "value")) {
             Value value = FluidIngredient.valueFromJson(GsonHelper.getAsJsonObject(jsonObject, "value"));
             return FluidIngredient.fromValue(value, amount, nbt);
         } else if (GsonHelper.isArrayNode(jsonObject, "value")) {
             JsonArray jsonArray = GsonHelper.getAsJsonArray(jsonObject, "value");
-            if (jsonArray.isEmpty() && !allowEmpty) {
+            if (jsonArray.isEmpty()) {
+                if (allowEmpty) return FluidIngredient.EMPTY;
                 throw new JsonSyntaxException("Fluid array cannot be empty, at least one fluid must be defined");
             }
             List<Value> values = new ArrayList<>();
@@ -298,6 +304,7 @@ public class FluidIngredient implements Predicate<FluidStack> {
                 return FluidIngredient.fromValue(new FluidValue(fluid), amount, nbt);
             }
         } else {
+            if (allowEmpty) return FluidIngredient.EMPTY;
             throw new JsonSyntaxException("expected 'value' to be an object, an array or a string.");
         }
     }

@@ -19,12 +19,6 @@ public final class StagingRecipeDB {
 
     private final @NotNull ObjectOpenHashSet<GTRecipe> recipes = new ObjectOpenHashSet<>();
 
-    /**
-     * Add a recipe to the DB
-     *
-     * @param recipe the recipe
-     * @return if successful
-     */
     public boolean add(@NotNull GTRecipe recipe) {
         return recipes.add(recipe);
     }

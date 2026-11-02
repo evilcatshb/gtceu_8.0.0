@@ -162,7 +162,7 @@ public class ChemicalHelper {
      */
     public static ItemStack getIngotOrDust(Material material, long materialAmount) {
         ItemStack ingotStack = getIngot(material, materialAmount);
-        if (ingotStack != ItemStack.EMPTY) return ingotStack;
+        if (!ingotStack.isEmpty()) return ingotStack;
         return getDust(material, materialAmount);
     }
 

@@ -43,13 +43,18 @@ public interface MachineCapabilityLayoutBuilder {
         var handlers = ItemRecipeCapability.CAP.getCapabilityHandlers(machine, io);
         if (handlers.isEmpty()) return;
         NotifiableItemStackHandler itemHandler = handlers.get(0);
-        if (itemHandler == null || itemHandler.getSlots() < 1 ||
-                layout.getRecipeType().getMaxSlots(ItemRecipeCapability.CAP, io) == 0)
+        int handlerSlots = itemHandler == null ? 0 : itemHandler.getSlots();
+        int recipeSlots = layout.getRecipeType().getMaxSlots(ItemRecipeCapability.CAP, io);
+        // The recipe type describes the maximum topology, while the machine handler is authoritative
+        // for the actual container topology. Steam Macerators intentionally have one output slot even
+        // though MACERATOR_RECIPES can describe up to four outputs.
+        int slots = Math.min(recipeSlots, handlerSlots);
+        if (handlerSlots < 1 || recipeSlots == 0 || slots == 0)
             return;
 
         var slotGroup = new SlotGroup(ItemRecipeCapability.CAP.id + "_" + io.name(), 3);
 
-        if (layout.getRecipeType().getMaxSlots(ItemRecipeCapability.CAP, io) == 1) {
+        if (slots == 1) {
             var slot = new ItemSlot()
                     .slot(new ModularSlot(itemHandler.storage, 0)
                             .slotGroup(slotGroup)

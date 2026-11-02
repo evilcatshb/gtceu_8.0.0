@@ -15,7 +15,9 @@ import com.gregtechceu.gtceu.api.machine.trait.MachineTrait;
 import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeLogic;
 import com.gregtechceu.gtceu.api.misc.EnergyContainerList;
 import com.gregtechceu.gtceu.api.multiblock.error.PatternStringError;
+import com.gregtechceu.gtceu.api.sync_system.ClassSyncData;
 import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.data_transformers.NBTSerializableTransformer;
 import com.gregtechceu.gtceu.common.block.BatteryBlock;
 import com.gregtechceu.gtceu.common.machine.multiblock.part.MaintenanceHatchPartMachine;
 import com.gregtechceu.gtceu.common.mui.GTMultiblockTextUtil;
@@ -55,6 +57,20 @@ import java.util.*;
 
 public class PowerSubstationMachine extends WorkableMultiblockMachine
                                     implements IEnergyInfoProvider, IMuiMachine, IVoidable {
+
+    // Fix: PowerStationEnergyBank implements both INBTSerializable (custom hand-written NBT
+    // logic) and, via MachineTrait, ISyncManaged (generic reflection-based @SaveField system).
+    // Both interfaces have globally registered ValueTransformers, and the generic sync-system
+    // lookup (ValueTransformers.generateOrGetTransformer) has no priority rule between them -
+    // it picks whichever registered supertype is hit first while scanning an unordered map.
+    // If it picks the ISyncManaged/SyncManagedTransformer path, it finds zero @SaveField fields
+    // on PowerStationEnergyBank (storage/maximums/capacity/index aren't annotated) and silently
+    // serializes an empty CompoundTag, discarding all stored EU on save. This forces the
+    // resolution to always use the intended custom INBTSerializable logic instead.
+    static {
+        ClassSyncData.getClassData(PowerSubstationMachine.class)
+                .setCustomTransformerForField("energyBank", new NBTSerializableTransformer());
+    }
 
     // Structure Constants
     public static final int MAX_BATTERY_LAYERS = 18;
@@ -163,6 +179,11 @@ public class PowerSubstationMachine extends WorkableMultiblockMachine
         }
         energyBank.rebuild(batteries);
         this.passiveDrain = this.energyBank.getPassiveDrainPerTick();
+
+        // Structure formation/recovery rebuilds the handler lists after a chunk reload.
+        // Reinitialize the conditional server-tick subscription only after that rebuild so
+        // transferEnergyTick() sees the restored input/output hatches.
+        tickSubscription.initialize(getLevel());
     }
 
     @Override

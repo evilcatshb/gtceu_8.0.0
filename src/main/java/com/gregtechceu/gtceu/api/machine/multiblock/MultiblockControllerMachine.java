@@ -9,6 +9,7 @@ import com.gregtechceu.gtceu.api.machine.multiblock.part.MultiblockPartMachine;
 import com.gregtechceu.gtceu.api.machine.property.GTMachineModelProperties;
 import com.gregtechceu.gtceu.api.machine.trait.MachineTrait;
 import com.gregtechceu.gtceu.api.machine.trait.multiblock.MultiblockMachineTrait;
+import com.gregtechceu.gtceu.api.mui.MultiblockSchemaInfo;
 import com.gregtechceu.gtceu.api.multiblock.MultiblockWorldSavedData;
 import com.gregtechceu.gtceu.api.multiblock.pattern.*;
 import com.gregtechceu.gtceu.api.multiblock.util.AbstractStructureHelper;
@@ -77,6 +78,14 @@ public class MultiblockControllerMachine extends MetaMachine {
             .create();
     protected final Object2ObjectMap<String, PatternState> patternStates = new Object2ObjectOpenHashMap<>();
 
+    /**
+     * A valid cached structure can survive while machine-specific runtime state (capability
+     * proxies, trait subscriptions, tick subscriptions, etc.) is cleared by onUnload().
+     * Force one post-load formStructure pass so subclasses can rebuild that runtime state even
+     * when the cached part list itself is already complete.
+     */
+    private boolean runtimeLifecycleRecoveryNeeded;
+
     public MultiblockControllerMachine(BlockEntityCreationInfo info) {
         super(info);
         createStructurePatterns();
@@ -86,7 +95,10 @@ public class MultiblockControllerMachine extends MetaMachine {
     public void onLoad() {
         super.onLoad();
         if (!isRemote()) {
-            // run a structure check on the first tick
+            runtimeLifecycleRecoveryNeeded = true;
+            // Perform the normal structure check after the world has finished loading this tick.
+            // formStructure() handles both first formation (VALID_UNCACHED) and recovery of a
+            // valid cached structure whose live part objects were unloaded/reloaded.
             ((ServerLevel) getLevel()).getServer().tell(new TickTask(2, this::checkAndFormStructure));
         }
     }
@@ -195,13 +207,19 @@ public class MultiblockControllerMachine extends MetaMachine {
             String name = entry.getKey();
             PatternState patternState = getPatternState(name);
             boolean formed = name.equals(DEFAULT_STRUCTURE) ? isFormed : patternState.isFormed();
+            boolean runtimePartsIncomplete = patternState.getState().isValid() &&
+                    isRuntimePartReconciliationNeeded(name);
             if (!formed || patternState.hasErrors() ||
-                    patternState.getState() == PatternState.CheckState.UNINITIALIZED) {
+                    patternState.getState() == PatternState.CheckState.UNINITIALIZED ||
+                    runtimePartsIncomplete || runtimeLifecycleRecoveryNeeded) {
                 if (!patternState.getState().isValid()) {
                     checkStructurePattern(name);
                 }
                 if (patternState.getState().isValid()) {
                     formStructure(name);
+                    if (patternState.isFormed() && patternState.getState().isValid()) {
+                        runtimeLifecycleRecoveryNeeded = false;
+                    }
                 }
                 MultiblockWorldSavedData.getOrCreate(serverLevel).addMapping(patternState);
 
@@ -294,6 +312,9 @@ public class MultiblockControllerMachine extends MetaMachine {
 
         if (patternState.isFormed()) {
             if (patternState.getState() == PatternState.CheckState.VALID_UNCACHED) {
+                // Preserve the original GTCEu first-formation path. VALID_UNCACHED means the
+                // pattern has just been validated and its matched live parts must be attached
+                // to this controller before machine-specific formStructure() runs.
                 forEachMultiPart(substructureName, part -> {
                     if (parts.contains(part)) return true;
 
@@ -309,6 +330,7 @@ public class MultiblockControllerMachine extends MetaMachine {
                 });
 
                 this.parts.sort(getDefinition().getPartSorter().apply(this));
+                this.parallelHatch = null;
                 for (var part : parts) {
                     if (part instanceof ParallelHatchPartMachine pHatch) {
                         this.parallelHatch = pHatch;
@@ -328,6 +350,11 @@ public class MultiblockControllerMachine extends MetaMachine {
                     if (trait instanceof MultiblockMachineTrait multiblockMachineTrait)
                         multiblockMachineTrait.onStructureFormed(substructureName);
                 }
+            } else if (patternState.getState() == PatternState.CheckState.VALID_CACHED) {
+                // A cached valid pattern does not guarantee that the live part objects survived
+                // chunk unload/reload. Reattach currently loaded parts without invalidating the
+                // valid structural cache.
+                reconcileRuntimeParts(substructureName);
             }
             return;
         }
@@ -413,6 +440,90 @@ public class MultiblockControllerMachine extends MetaMachine {
     @Nullable
     public IBlockPattern getSubstructurePattern(String name) {
         return structurePatterns.get(this.getDefinition(), name);
+    }
+
+    /**
+     * Rebuilds the live controller -> part relationship for every currently loaded part in a
+     * structurally valid pattern. This never force-loads chunks and does not invalidate a valid
+     * pattern merely because one of its parts is currently unloaded.
+     */
+    public boolean reconcileRuntimeParts(String name) {
+        PatternState patternState = getPatternState(name);
+        if (patternState == null || !patternState.getState().isValid()) return false;
+
+        var cache = patternState.getCache();
+        if (cache.isEmpty()) return false;
+
+        Set<MultiblockPartMachine> desiredLoadedParts = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (var entry : cache.long2ObjectEntrySet()) {
+            BlockPos pos = BlockPos.of(entry.getLongKey());
+            // Resolve the current BlockEntity. BlockInfo may retain the old instance from before
+            // a chunk unload/reload, so using its cached BlockEntity directly would reattach a
+            // removed object.
+            if (getMachine(getLevel(), pos) instanceof MultiblockPartMachine part && !part.isRemoved()) {
+                desiredLoadedParts.add(part);
+            }
+        }
+
+        boolean changed = false;
+        for (var part : new ArrayList<>(parts)) {
+            if (name.equals(part.getSubstructureName()) && !desiredLoadedParts.contains(part)) {
+                part.removedFromController(this);
+                parts.remove(part);
+                changed = true;
+            }
+        }
+
+        for (var part : desiredLoadedParts) {
+            if (parts.contains(part)) continue;
+
+            if (part.hasController(getBlockPos()) && !part.canShared(this, name)) {
+                invalidateStructure(name);
+                return false;
+            }
+
+            if (shouldAddPartToController(part)) {
+                parts.add(part);
+                part.addedToController(this, name);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            parts.sort(getDefinition().getPartSorter().apply(this));
+            parallelHatch = null;
+            for (var part : parts) {
+                if (part instanceof ParallelHatchPartMachine pHatch) {
+                    parallelHatch = pHatch;
+                    break;
+                }
+            }
+            updatePartPositions();
+        }
+        return true;
+    }
+
+    private boolean isRuntimePartReconciliationNeeded(String name) {
+        PatternState patternState = getPatternState(name);
+        if (patternState == null || !patternState.getState().isValid()) return false;
+        var cache = patternState.getCache();
+        if (cache.isEmpty()) return false;
+
+        Set<MultiblockPartMachine> desiredLoadedParts = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (var entry : cache.long2ObjectEntrySet()) {
+            BlockPos pos = BlockPos.of(entry.getLongKey());
+            if (getMachine(getLevel(), pos) instanceof MultiblockPartMachine part && !part.isRemoved()) {
+                desiredLoadedParts.add(part);
+            }
+        }
+
+        for (var part : desiredLoadedParts) {
+            if (!parts.contains(part)) return true;
+        }
+        for (var part : parts) {
+            if (name.equals(part.getSubstructureName()) && !desiredLoadedParts.contains(part)) return true;
+        }
+        return false;
     }
 
     protected final boolean forEachMultiPart(String name, Predicate<MultiblockPartMachine> action) {
@@ -522,7 +633,8 @@ public class MultiblockControllerMachine extends MetaMachine {
                 }
 
                 if (structureHelper != null) {
-                    structureHelper.populate(resultStructure, pattern, null, getFrontFacing(), getUpwardsFacing(),
+                    structureHelper.populate(new MultiblockSchemaInfo(), resultStructure, pattern, null,
+                            getFrontFacing(), getUpwardsFacing(),
                             isFlipped());
                     Long2ReferenceMap<BlockState> blocks = new Long2ReferenceOpenHashMap<>();
                     resultStructure.forEach((pos, state) -> blocks.put(pos.asLong(), state.getBlockState()));

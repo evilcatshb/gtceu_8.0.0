@@ -453,7 +453,7 @@ public class RecyclingRecipes {
             ms = new MaterialStack(ms.material().hasFlag(IS_MAGNETIC) ?
                     ms.material().getProperty(PropertyKey.INGOT).getMacerateInto() : ms.material(), ms.amount());
             ItemStack stack = toItemStackMapper.apply(ms.multiply(yield));
-            if (stack == ItemStack.EMPTY) continue;
+            if (stack.isEmpty()) continue;
             if (stack.getCount() > 64) {
                 MaterialEntry entry = ChemicalHelper.getMaterialEntry(stack.getItem());
                 if (!entry.isEmpty()) { // should always be true
@@ -522,6 +522,7 @@ public class RecyclingRecipes {
         for (int i = 0; i < ashStacks.size() && returnValues.size() < maxOutputs; i++) {
             returnValues.add(ashStacks.get(i));
         }
+        returnValues.removeIf(ItemStack::isEmpty);
         return returnValues;
     }
 

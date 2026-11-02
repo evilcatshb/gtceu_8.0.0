@@ -1,5 +1,6 @@
 package com.gregtechceu.gtceu.api.recipe.gui;
 
+import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.GTValues;
 import com.gregtechceu.gtceu.api.capability.recipe.CWURecipeCapability;
 import com.gregtechceu.gtceu.api.capability.recipe.FluidRecipeCapability;
@@ -50,12 +51,30 @@ public interface CapabilityContentBuilder {
 
     CapabilityContentBuilder ITEM = (widget, content, io, perTick,
                                      recipeType, recipe, chanceTier, recipeTier) -> {
-        if (!(widget instanceof RecipeViewerSlotWidget<?> recipeViewerSlotWidget)) return;
+        if (!(widget instanceof RecipeViewerSlotWidget<?> recipeViewerSlotWidget)) {
+            // === DEEPSPACE DEBUG PATCH (content) START ===
+            GTCEu.LOGGER.error(
+                    "[DeepSpace/CONTENT DEBUG]\nWIDGET WRONG TYPE (not a RecipeViewerSlotWidget, nothing will render):\nrecipe = {}\nwidgetClass = {}",
+                    recipe.id, widget == null ? "null" : widget.getClass().getName());
+            // === DEEPSPACE DEBUG PATCH (content) END ===
+            return;
+        }
 
         float chance = (float) content.chance() / content.maxChance();
         var innerContent = ItemRecipeCapability.CAP.of(content.content());
 
-        recipeViewerSlotWidget.value(ItemRecipeCapability.mapIngredientToEntryList(innerContent));
+        var mappedEntries = ItemRecipeCapability.mapIngredientToEntryList(innerContent);
+
+        // === DEEPSPACE DEBUG PATCH (content) START ===
+        if (mappedEntries == null || mappedEntries.isEmpty()) {
+            GTCEu.LOGGER.error(
+                    "[DeepSpace/CONTENT DEBUG]\nEMPTY MAPPED ENTRIES AT SLOT-FILL TIME (this is what actually renders):\nrecipe = {}\nio = {}\nperTick = {}\ncontent.content() = {}\ninnerContent = {}\ninnerContentClass = {}",
+                    recipe.id, io, perTick, content.content(), innerContent,
+                    innerContent == null ? "null" : innerContent.getClass().getName());
+        }
+        // === DEEPSPACE DEBUG PATCH (content) END ===
+
+        recipeViewerSlotWidget.value(mappedEntries);
         recipeViewerSlotWidget
                 .overlay(new ContentOverlay(content, perTick));
         recipeViewerSlotWidget.chance(chance);

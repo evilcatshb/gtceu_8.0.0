@@ -52,7 +52,14 @@ public class EnvironmentalHazardCondition extends RecipeCondition<EnvironmentalH
 
     @Override
     public boolean testCondition(@NotNull GTRecipe recipe, @NotNull RecipeLogic recipeLogic) {
-        if (!ConfigHolder.INSTANCE.gameplay.hazardsEnabled) return true;
+        // NOTE: this must be gated on `environmentalHazards` (the pollution/radiation zone system), not
+        // `hazardsEnabled` (the unrelated "hazardous materials directly hurt players" toggle). This recipe
+        // condition exists purely to check whether there's actual chunk pollution for the Air Scrubber to
+        // consume, so it must keep doing that real check even when `hazardsEnabled` is false - otherwise
+        // servers that disable direct material hazards (a very common config choice) but keep chunk
+        // pollution/scrubbers enabled would have this condition unconditionally return true, letting Air
+        // Scrubbers "run" without ever actually finding pollution to remove.
+        if (!ConfigHolder.INSTANCE.gameplay.environmentalHazards) return false;
         if (!(recipeLogic.getMachine().getLevel() instanceof ServerLevel serverLevel)) {
             return false;
         }

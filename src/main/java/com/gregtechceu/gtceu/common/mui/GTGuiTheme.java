@@ -27,6 +27,34 @@ public class GTGuiTheme {
 
     private static final List<GTGuiTheme> THEMES = new ArrayList<>();
 
+    static {
+        // Force GTGuiTextures to fully initialize now, registering all of its
+        // named textures (including the bronze/steel/primitive panel backgrounds
+        // and item slots referenced by the themes below) into ModularUI's
+        // TextureRegistry BEFORE ModularUI parses/caches these theme JSONs during
+        // its resource reload.
+        //
+        // Root cause: GTGuiTextures is otherwise only touched lazily, the first
+        // time a machine GUI is actually built at runtime - which happens AFTER
+        // ModularUI's initial theme resource reload at game boot. When that reload
+        // runs first, TextureRegistry.getTexture("gtceu:bronze_bg") (etc.) returns
+        // null, the "texture" codec fails to resolve the named texture, and
+        // ModularUI silently falls back to IDrawable.NONE for that theme's
+        // background. That NONE is cached for the theme's lifetime, so later code
+        // that assumes a real UITexture (e.g. MachineUIPanel's hard cast) throws
+        // ClassCastException: IDrawable$2 cannot be cast to UITexture.
+        //
+        // Forcing initialization here, from this class's own <clinit> (itself
+        // triggered by the FMLConstructModEvent listener below, i.e. during mod
+        // construction, long before Minecraft's client resource reload runs),
+        // guarantees the names are registered in time.
+        var forceGTGuiTexturesInit = com.gregtechceu.gtceu.common.mui.GTGuiTextures.BACKGROUND;
+        com.gregtechceu.gtceu.GTCEu.LOGGER.info(
+                "[GTDEBUG-INIT] Forced GTGuiTextures init from GTGuiTheme.<clinit>. bronze_bg registered={} steel_bg registered={} primitive_bg registered={}",
+                brachy.modularui.drawable.TextureRegistry.getTexture("gtceu:bronze_bg") != null,
+                brachy.modularui.drawable.TextureRegistry.getTexture("gtceu:steel_bg") != null,
+                brachy.modularui.drawable.TextureRegistry.getTexture("gtceu:primitive_bg") != null);
+    }
     public static WidgetThemeKey<WidgetTheme> TEXT_TITLE = IThemeApi.get()
             .widgetThemeKeyBuilder("textTitle", WidgetTheme.class)
             .defaultTheme(new WidgetTheme(0, 0, null, Color.WHITE.main, 0x404040, false, 0))

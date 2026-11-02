@@ -31,16 +31,46 @@ public class MachineUIPanel extends ModularPanel<MachineUIPanel> {
 
         UITexture themeBackground = null;
         if (!machine.getDefinition().getThemeId().equals(ThemeAPI.DEFAULT_ID)) {
-            themeBackground = (UITexture) ThemeAPI.INSTANCE.getTheme(machine.getDefinition().getThemeId())
+            String themeIdStr = machine.getDefinition().getThemeId();
+            // ModularUI's theme-baking pipeline can leave a JSON-defined theme's
+            // panel background unresolved as IDrawable.NONE rather than a real
+            // UITexture (observed reliably for GTCEu's bronze/steel/primitive
+            // themes, whose "panel" widget-theme JSON never defines a "panel:hover"
+            // variant). Guard the cast instead of trusting it blindly, and fall
+            // back to the theme's own known-correct Java texture constant so the
+            // GUI still opens correctly even when that bake goes wrong.
+            IDrawable rawBackground = ThemeAPI.INSTANCE.getTheme(themeIdStr)
                     .getPanelTheme()
                     .theme().getBackground();
+            themeBackground = rawBackground instanceof UITexture texture ? texture :
+                    fallbackBackgroundForTheme(themeIdStr);
         }
         if (themeBackground == null) {
-            themeBackground = (UITexture) ThemeAPI.INSTANCE.getTheme(settings.getTheme()).getPanelTheme()
+            String defaultThemeIdStr = settings.getTheme();
+            IDrawable defaultBackground = ThemeAPI.INSTANCE.getTheme(defaultThemeIdStr).getPanelTheme()
                     .theme().getBackground();
+            if (defaultBackground instanceof UITexture texture) {
+                themeBackground = texture;
+            } else {
+                // Mirrors the guard above: settings.getTheme() hits the exact same
+                // ModularUI theme-baking pipeline, so it can fail to resolve to a
+                // real UITexture for the same reason. Previously this branch had
+                // no fallback and silently dropped to the generic background below,
+                // which is the most likely explanation for steam (bronze/steel)
+                // machines still showing no themed background after the fix above -
+                // if a steam machine's theme is resolved via panel settings rather
+                // than machine.getDefinition().getThemeId(), it would hit this
+                // branch and get no safety net.
+                com.gregtechceu.gtceu.GTCEu.LOGGER.warn(
+                        "[GTDEBUG-PANEL-SETTINGS-THEME] settings.getTheme()={} resolved to non-UITexture background: {} - falling back to known texture",
+                        defaultThemeIdStr,
+                        defaultBackground == null ? "null" : defaultBackground.getClass().getName());
+                themeBackground = fallbackBackgroundForTheme(defaultThemeIdStr);
+            }
         }
 
         if (themeBackground == null) themeBackground = GTGuiTextures.BACKGROUND;
+        background(themeBackground);
         leftConfiguratorPanel = Flow.col()
                 .coverChildren()
                 .rightRel(1.0f)
@@ -94,5 +124,29 @@ public class MachineUIPanel extends ModularPanel<MachineUIPanel> {
         child(rightConfiguratorPanel);
         child(panelContents);
         coverChildren();
+    }
+
+    /**
+     * Known-correct fallback panel background texture for a given GTCEu theme id,
+     * used when the theme's baked ModularUI panel background failed to resolve
+     * to a real UITexture. See the guard in the constructor above for context.
+     */
+    public static UITexture fallbackBackgroundForTheme(String themeId) {
+        UITexture base = switch (themeId) {
+            case "gtceu:bronze" -> GTGuiTextures.BACKGROUND_BRONZE;
+            case "gtceu:steel" -> GTGuiTextures.BACKGROUND_STEEL;
+            case "gtceu:primitive" -> GTGuiTextures.BACKGROUND_PRIMITIVE;
+            case "gtceu:cover" -> GTGuiTextures.BACKGROUND_POPUP;
+            default -> GTGuiTextures.BACKGROUND;
+        };
+        // The texture asset itself is fine (verified against the active resource
+        // pack's PNG directly). What was actually invisible is the GL tint: these
+        // textures use ColorType.DEFAULT, so at draw time they get multiplied by
+        // whatever color the (already-corrupted) baked "panel" widget theme
+        // resolves to - which bakes out wrong/empty for bronze/steel/primitive
+        // alongside the "background":"none" corruption. withColorOverride forces
+        // an opaque white (no-op) tint so the real texture colors always show,
+        // independent of that broken theme color.
+        return base.withColorOverride(0xFFFFFFFF);
     }
 }
